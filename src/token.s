@@ -52,6 +52,7 @@
         keyword_rts "CLOSE", CLOSE
         keyword_rts "GET", GET
         keyword_rts "NEW", NEW
+        keyword_rts "CAPS", CAPS
         keyword_rts "GFX", GFX
 
         count_tokens
