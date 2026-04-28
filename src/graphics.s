@@ -309,15 +309,16 @@ MODE:
 
 ; ----------------------------------------------------------
 ; CLS
-;   Clear active graphics framebuffer to color 0 and clear the
-;   visible console terminal when present.
+;   Clear active graphics framebuffer to color 0.
 ; ----------------------------------------------------------
 CLS:
         lda gfx_mode
-        beq @clear_console_only
+        bne :+
+        ldx #ERR_ILLQTY
+        jmp ERROR
+:
 
         ; Clear bitmap framebuffer.
-        lda gfx_mode
         lda #$01
         sta RIA_STEP0
         lda #<GFX_FB_ADDR
@@ -340,17 +341,46 @@ CLS:
         bne @byte
         dex
         bne @page
+        rts
 
-        ; If console overlay is enabled, clear the terminal too.
-        lda gfx_console_enable
-        beq @done
-
-@clear_console_only:
+; ----------------------------------------------------------
+; GFX_CCLEAR
+;   Clear terminal/console text and home cursor.
+; ----------------------------------------------------------
+GFX_CCLEAR:
         lda #$0C                  ; FF = clear screen, home cursor
         jsr OUTDO
         stz POSX
-@done:
         rts
+
+; ----------------------------------------------------------
+; CLSALL
+;   Clear both graphics bitmap (when active) and console terminal.
+; ----------------------------------------------------------
+CLSALL:
+        lda gfx_mode
+        beq :+
+        jsr CLS
+:
+        jmp GFX_CCLEAR
+
+; ----------------------------------------------------------
+; GFX_RESET
+;   Restore default graphics state and return to console canvas.
+; ----------------------------------------------------------
+GFX_RESET:
+        stz gfx_mode
+        stz gfx_bitmap_plane      ; default bitmap on plane 0
+        lda #$02
+        sta gfx_console_plane     ; default console overlay on plane 2
+        lda #$01
+        sta gfx_console_enable    ; overlay enabled
+        lda #$00
+        jsr gfx_xreg_canvas
+        bcc :+
+        jmp GFX_BAD
+:
+        jmp GFX_CCLEAR
 
 ; ----------------------------------------------------------
 ; gfx_validate_x_current
@@ -495,10 +525,13 @@ gfx_plot_current:
 ; GFX subcommand dispatcher
 ;   GFX MODE,<mode>         (aliases: M)
 ;   GFX CLEAR               (aliases: C)
+;   GFX CCLEAR              (console clear)
+;   GFX CLEAR,ALL           (bitmap+console clear)
 ;   GFX PSET,<x>,<y>,<c>    (aliases: P)
 ;   GFX HLINE,<x1>,<y>,<x2>,<c> (aliases: H)
 ;   GFX VLINE,<x>,<y1>,<y2>,<c> (aliases: V)
 ;   GFX RECT,<x1>,<y1>,<x2>,<y2>,<c> (aliases: R)
+;   GFX RESET
 ;   GFX BITMAP,<plane>      (aliases: B)
 ;   GFX OVERLAY,<plane|255> (aliases: O)
 ;   GFX STATUS              (aliases: S)
@@ -572,7 +605,13 @@ GFX:
 
 @cls:
         jsr CHRGET
-        beq @cls_ok
+        beq @cls_bitmap
+        cmp #','
+        beq @cls_all_sep
+        cmp #TOKEN_CLEAR
+        beq @cclear_token_tail
+        cmp #'C'
+        beq @cclear_l
         cmp #'L'
         beq :+
         jmp GFX_BAD
@@ -593,10 +632,66 @@ GFX:
         jmp GFX_BAD
 :       
         jsr CHRGET
-        beq @cls_ok
+        beq @cls_bitmap
+        cmp #','
+        beq @cls_all_sep
         jmp GFX_BAD
-@cls_ok:
+@cls_bitmap:
         jmp CLS
+
+@cclear_token_tail:
+        jsr CHRGET
+        beq @cls_console
+        jmp GFX_BAD
+
+@cclear_l:
+        jsr CHRGET
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'R'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        beq @cls_console
+        jmp GFX_BAD
+@cls_console:
+        jmp GFX_CCLEAR
+
+@cls_all_sep:
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        beq :+
+        jmp GFX_BAD
+:       
+        jmp CLSALL
 
 @pset:
         jsr CHRGET
@@ -690,9 +785,12 @@ GFX:
 :       
         jsr CHRGET
         cmp #'C'
-        beq :+
+        beq @rect_word_c
+        cmp #'S'
+        beq @reset_word_s
         jmp GFX_BAD
-:       
+
+@rect_word_c:
         jsr CHRGET
         cmp #'T'
         beq :+
@@ -703,6 +801,23 @@ GFX:
         lda #','
         jsr SYNCHR
         jmp GFX_RECT
+
+@reset_word_s:
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        beq :+
+        jmp GFX_BAD
+:       
+        jmp GFX_RESET
 
 @bitmap_plane:
         jsr CHRGET

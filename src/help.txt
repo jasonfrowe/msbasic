@@ -27,7 +27,10 @@ Graphics commands (early preview):
   GFX HLINE,X1,Y,X2,C    Draw a horizontal line from X1 to X2
   GFX VLINE,X,Y1,Y2,C    Draw a vertical line from Y1 to Y2
   GFX RECT,X1,Y1,X2,Y2,C Draw a filled rectangle
-  GFX CLEAR              Clear bitmap and visible console terminal
+  GFX CLEAR              Clear bitmap only (graphics mode required)
+  GFX CCLEAR             Clear console terminal only
+  GFX CLEAR,ALL          Clear bitmap and console terminal
+  GFX RESET              Restore default graphics state and console
   GFX STATUS             Show current mode and layer configuration
   GFX BITMAP,P           Set bitmap plane to P (0..2)
   GFX OVERLAY,P          Set console overlay plane to P (0..2)
