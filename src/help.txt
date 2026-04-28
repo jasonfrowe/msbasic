@@ -19,6 +19,7 @@ Launch arguments:
   <name>  program is loaded and run automatically
 
 Graphics commands (early preview):
+  Canonical style uses full words (MODE, CLEAR, PSET, etc.).
   GFX MODE,0             Return to console canvas
   GFX MODE,180           320x180 bitmap mode (8-bit color index)
   GFX MODE,240           320x240 bitmap mode (4-bit color index)
@@ -35,7 +36,7 @@ Graphics commands (early preview):
   GFX BITMAP,P           Set bitmap plane to P (0..2)
   GFX OVERLAY,P          Set console overlay plane to P (0..2)
   GFX OVERLAY,255        Disable console overlay
-  Short aliases M/C/P/H/V/R/B/O/S are also accepted.
+  Single-letter aliases (M/C/P/H/V/R/B/O/S) remain for compatibility only.
 
 File open/close and directory services will be added in the future.
 For now, press CTRL-ALT-DEL or send BREAK to drop into the RP6502

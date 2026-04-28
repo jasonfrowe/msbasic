@@ -15,8 +15,12 @@ the ifdef noise and enable the linker to manage memory. Files in
 
 ## Graphics demos
 
+Canonical `GFX` command style uses word-form subcommands (`GFX MODE`, `GFX CLEAR`, etc.).
+Single-letter forms are kept only as compatibility aliases.
+
 Example programs are in `examples/`:
 
-- `graphics-smoke.bas` - quick primitive test (`GFX P/H/V/R`).
-- `mandelbrot240.bas` - Mandelbrot render in `GFX M,240`.
-- `mandelbrot180.bas` - Mandelbrot render in `GFX M,180`.
+- `graphics-smoke.bas` - quick primitive test with `GFX HLINE`, `GFX VLINE`, `GFX RECT`, and `GFX PSET`.
+- `mandelbrot240.bas` - Mandelbrot render in `GFX MODE,240`.
+- `mandelbrot180.bas` - Mandelbrot render in `GFX MODE,180`.
+- `gfx-api.bas` - concise API tour for mode/layer/clear/reset behavior.

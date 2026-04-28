@@ -523,6 +523,8 @@ gfx_plot_current:
 
 ; ----------------------------------------------------------
 ; GFX subcommand dispatcher
+; Canonical command style uses word-form subcommands.
+; Single-letter forms are compatibility aliases.
 ;   GFX MODE,<mode>         (aliases: M)
 ;   GFX CLEAR               (aliases: C)
 ;   GFX CCLEAR              (console clear)
