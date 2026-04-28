@@ -217,58 +217,54 @@ CLS:
         rts
 
 ; ----------------------------------------------------------
-; PSET x,y,c
+; gfx_validate_x_current
+;   Validate current gfx_xlo/gfx_xhi is in range 0..319.
+;   Returns C=0 if valid, C=1 if invalid.
 ; ----------------------------------------------------------
-PSET:
-        lda gfx_mode
-        bne @mode_ok
-        ldx #ERR_ILLQTY
-        jmp ERROR
-
-@mode_ok:
-        jsr FRMNUM
-        jsr GETADR
-        lda LINNUM
-        sta gfx_xlo
-        lda LINNUM+1
-        sta gfx_xhi
-
-        jsr COMBYTE               ; y in X
-        stx gfx_y
-
-        jsr COMBYTE               ; color in X
-        stx gfx_color
-
-        ; x must be 0..319
+gfx_validate_x_current:
         lda gfx_xhi
-        cmp #$02
-        bcc :+
-        jmp @bad
-:       
-        lda gfx_xhi
-        beq @x_ok
+        beq @ok
+        cmp #$01
+        bne @bad
         lda gfx_xlo
         cmp #$40
-        bcc @x_ok
-        jmp @bad
-@x_ok:
+        bcc @ok
+@bad:
+        sec
+        rts
+@ok:
+        clc
+        rts
 
-        ; y bound by mode
+; ----------------------------------------------------------
+; gfx_validate_y_current
+;   Validate current gfx_y against active mode height.
+;   Returns C=0 if valid, C=1 if invalid.
+; ----------------------------------------------------------
+gfx_validate_y_current:
         lda gfx_mode
         cmp #$01
         bne @chk240
         lda gfx_y
         cmp #180
-        bcc @plot
-        jmp @bad
-
+        bcc @ok
+        sec
+        rts
 @chk240:
         lda gfx_y
         cmp #240
-        bcc @plot
-        jmp @bad
+        bcc @ok
+        sec
+        rts
+@ok:
+        clc
+        rts
 
-@plot:
+; ----------------------------------------------------------
+; gfx_plot_current
+;   Plot one pixel using gfx_xlo/gfx_xhi, gfx_y, gfx_color.
+; ----------------------------------------------------------
+gfx_plot_current:
         ; offset = x + y*256 + y*64
         lda gfx_xlo
         sta gfx_offlo
@@ -359,6 +355,109 @@ PSET:
         sta RIA_RW0
         rts
 
-@bad:
+; ----------------------------------------------------------
+; PSET x,y,c
+; ----------------------------------------------------------
+PSET:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_xlo
+        lda LINNUM+1
+        sta gfx_xhi
+
+        jsr COMBYTE               ; y in X
+        stx gfx_y
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        jsr gfx_validate_x_current
+        bcs GFX_BAD
+        jsr gfx_validate_y_current
+        bcs GFX_BAD
+        jsr gfx_plot_current
+        rts
+
+; ----------------------------------------------------------
+; HLINE x1,y,x2,c
+; ----------------------------------------------------------
+HLINE:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_xlo
+        lda LINNUM+1
+        sta gfx_xhi
+
+        jsr COMBYTE               ; y in X
+        stx gfx_y
+
+        jsr CHKCOM
+        jsr FRMNUM
+        jsr GETADR                ; x2 in LINNUM
+        lda LINNUM
+        sta gfx_x2lo
+        lda LINNUM+1
+        sta gfx_x2hi
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        jsr gfx_validate_x_current
+        bcs GFX_BAD
+        jsr gfx_validate_y_current
+        bcs GFX_BAD
+
+        ; validate x2 in gfx_x2lo/gfx_x2hi
+        lda gfx_x2hi
+        beq @x2_ok
+        cmp #$01
+        bne GFX_BAD
+        lda gfx_x2lo
+        cmp #$40
+        bcs GFX_BAD
+@x2_ok:
+
+        ; require x1 <= x2
+        lda gfx_xhi
+        cmp gfx_x2hi
+        bcc @draw
+        bne GFX_BAD
+        lda gfx_xlo
+        cmp gfx_x2lo
+        bcc @draw
+        beq @draw
+        jmp GFX_BAD
+
+@draw:
+        jsr gfx_plot_current
+        lda gfx_xhi
+        cmp gfx_x2hi
+        bne @step
+        lda gfx_xlo
+        cmp gfx_x2lo
+        beq @done
+@step:
+        inc gfx_xlo
+        bne @draw
+        inc gfx_xhi
+        bra @draw
+@done:
+        rts
+
+GFX_BAD:
         ldx #ERR_ILLQTY
         jmp ERROR

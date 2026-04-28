@@ -22,6 +22,7 @@ Graphics commands (early preview):
   MODE 180        320x180 bitmap mode (8-bit color index)
   MODE 240        320x240 bitmap mode (4-bit color index)
   PSET X,Y,C      Plot pixel at X,Y with color C
+  HLINE X1,Y,X2,C Draw a horizontal line from X1 to X2
   CLS             Clear active graphics mode to color 0
 
 File open/close and directory services will be added in the future.

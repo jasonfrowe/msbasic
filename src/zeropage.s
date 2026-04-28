@@ -99,6 +99,8 @@ gfx_tmp:       .res 1
 gfx_mulhi:     .res 1
 gfx_offlo:     .res 1
 gfx_offhi:     .res 1
+gfx_x2lo:      .res 1
+gfx_x2hi:      .res 1
 
 CHRGET:
 TXTPTR  = <(GENERIC_TXTPTR  - GENERIC_CHRGET + CHRGET)

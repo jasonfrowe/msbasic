@@ -22,7 +22,7 @@
         keyword_rts "FOR", FOR
         keyword_rts "NEXT", NEXT
         keyword_rts "DATA", DATA
-        keyword_rts "INPUT#", INPUTH
+        keyword_rts "HLINE", HLINE
         keyword_rts "INPUT", INPUT
         keyword_rts "DIM", DIM
         keyword_rts "READ", READ
