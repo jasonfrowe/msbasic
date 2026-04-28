@@ -28,10 +28,11 @@ Graphics commands (early preview):
   GFX VLINE,X,Y1,Y2,C    Draw a vertical line from Y1 to Y2
   GFX RECT,X1,Y1,X2,Y2,C Draw a filled rectangle
   GFX CLEAR              Clear bitmap and visible console terminal
+  GFX STATUS             Show current mode and layer configuration
   GFX BITMAP,P           Set bitmap plane to P (0..2)
   GFX OVERLAY,P          Set console overlay plane to P (0..2)
   GFX OVERLAY,255        Disable console overlay
-  Short aliases M/C/P/H/V/R/B/O are also accepted.
+  Short aliases M/C/P/H/V/R/B/O/S are also accepted.
 
 File open/close and directory services will be added in the future.
 For now, press CTRL-ALT-DEL or send BREAK to drop into the RP6502

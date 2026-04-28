@@ -501,6 +501,7 @@ gfx_plot_current:
 ;   GFX RECT,<x1>,<y1>,<x2>,<y2>,<c> (aliases: R)
 ;   GFX BITMAP,<plane>      (aliases: B)
 ;   GFX OVERLAY,<plane|255> (aliases: O)
+;   GFX STATUS              (aliases: S)
 ; ----------------------------------------------------------
 GFX:
         cmp #'M'
@@ -538,6 +539,10 @@ GFX:
         cmp #'O'
         bne :+
         jmp @overlay_plane
+:       
+        cmp #'S'
+        bne :+
+        jmp @status
 :       
         jmp GFX_BAD
 
@@ -807,6 +812,96 @@ GFX:
         jsr gfx_apply_mode_current
         bcc @overlay_done
         jmp GFX_BAD
+        rts
+
+@status:
+        jsr CHRGET
+        beq @status_run
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'U'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'S'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        beq @status_run
+        jmp GFX_BAD
+
+@status_run:
+        jmp GFX_STATUS
+
+; ----------------------------------------------------------
+; GFX_STATUS
+;   Print current mode and layer state.
+; ----------------------------------------------------------
+GFX_STATUS:
+        lda #<gfx_status_mode
+        ldy #>gfx_status_mode
+        jsr STROUT
+
+        lda gfx_mode
+        beq @mode0
+        cmp #$01
+        beq @mode180
+        ldx #$F0                 ; 240
+        lda #$00
+        bra @mode_print
+
+@mode0:
+        ldx #$00
+        lda #$00
+        bra @mode_print
+
+@mode180:
+        ldx #$B4                 ; 180
+        lda #$00
+
+@mode_print:
+        jsr rp6502_linprt
+        jsr CRDO
+
+        lda #<gfx_status_bitmap
+        ldy #>gfx_status_bitmap
+        jsr STROUT
+        ldx gfx_bitmap_plane
+        lda #$00
+        jsr rp6502_linprt
+        jsr CRDO
+
+        lda #<gfx_status_overlay
+        ldy #>gfx_status_overlay
+        jsr STROUT
+        lda gfx_console_enable
+        bne @overlay_on
+        lda #<gfx_status_off
+        ldy #>gfx_status_off
+        jsr STROUT
+        jsr CRDO
+        rts
+
+@overlay_on:
+        ldx gfx_console_plane
+        lda #$00
+        jsr rp6502_linprt
+        jsr CRDO
         rts
 
 ; ----------------------------------------------------------
@@ -1123,3 +1218,15 @@ VLINE:
 GFX_BAD:
         ldx #ERR_ILLQTY
         jmp ERROR
+
+gfx_status_mode:
+        .byte "GFX MODE=",0
+
+gfx_status_bitmap:
+        .byte "GFX BITMAP PLANE=",0
+
+gfx_status_overlay:
+        .byte "GFX OVERLAY PLANE=",0
+
+gfx_status_off:
+        .byte "OFF",0
