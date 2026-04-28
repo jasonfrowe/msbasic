@@ -1,0 +1,24 @@
+Microsoft BASIC for the Picocomputer 6502.
+Core interpreter by Bill Gates and Paul Allen.
+Floating-point math routines by Monte Davidoff.
+Released in 2025 with an MIT license:
+https://github.com/microsoft/BASIC-M6502
+
+Key changes and notes:
+  CTRL-C stops a running program or listing.
+  Type a line number then press TAB to edit a line.
+  LOAD and SAVE file format is plain ASCII.
+  Keywords and variable names may be entered in lower case.
+  RND() is seeded with hardware entropy at cold-start.
+  CAPS <expr> selects a caps mode; see launch options.
+
+Launch arguments:
+  -c0     caps mode off (case as typed)
+  -c1     caps mode on  (default - letters always upper case)
+  -c2     caps mode invert (swap case)
+  <name>  program is loaded and run automatically
+
+File open/close and directory services will be added in the future.
+For now, press CTRL-ALT-DEL or send BREAK to drop into the RP6502
+monitor where you can list and change directories or unlink files.
+Type RESET to warm-start BASIC, preserving program memory.
