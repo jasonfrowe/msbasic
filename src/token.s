@@ -13,7 +13,7 @@
 ; - No USR (no user-defined-machine-code-call vector — irrelevant on RP6502).
 ; - "CLEAR" instead of "CLR".
 ; - Same general layout/order so token numbers align with upstream where
-;   meaningful (TOKEN_PRINT, TOKEN_GOTO, etc.). CAPS is our addition,
+;   meaningful (TOKEN_PRINT, TOKEN_GOTO, etc.). GFX is our addition,
 ;   placed last so it doesn't perturb upstream-compatible token numbers.
 
         init_token_tables
@@ -22,7 +22,7 @@
         keyword_rts "FOR", FOR
         keyword_rts "NEXT", NEXT
         keyword_rts "DATA", DATA
-        keyword_rts "HLINE", HLINE
+        keyword_rts "INPUT#", INPUTH
         keyword_rts "INPUT", INPUT
         keyword_rts "DIM", DIM
         keyword_rts "READ", READ
@@ -46,13 +46,13 @@
         keyword_rts "CONT", CONT
         keyword_rts "LIST", LIST
         keyword_rts "CLEAR", CLEAR
-        keyword_rts "VLINE", VLINE
-        keyword_rts "MODE", MODE
-        keyword_rts "PSET", PSET
-        keyword_rts "CLS", CLS
+        keyword_rts "CMD", CMD
+        keyword_rts "SYS", SYS
+        keyword_rts "OPEN", OPEN
+        keyword_rts "CLOSE", CLOSE
         keyword_rts "GET", GET
         keyword_rts "NEW", NEW
-        keyword_rts "CAPS", CAPS
+        keyword_rts "GFX", GFX
 
         count_tokens
 

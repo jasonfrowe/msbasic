@@ -19,12 +19,13 @@ Launch arguments:
   <name>  program is loaded and run automatically
 
 Graphics commands (early preview):
-  MODE 180        320x180 bitmap mode (8-bit color index)
-  MODE 240        320x240 bitmap mode (4-bit color index)
-  PSET X,Y,C      Plot pixel at X,Y with color C
-  HLINE X1,Y,X2,C Draw a horizontal line from X1 to X2
-  VLINE X,Y1,Y2,C Draw a vertical line from Y1 to Y2
-  CLS             Clear active graphics mode to color 0
+  GFX M,180       320x180 bitmap mode (8-bit color index)
+  GFX M,240       320x240 bitmap mode (4-bit color index)
+  GFX P,X,Y,C     Plot pixel at X,Y with color C
+  GFX H,X1,Y,X2,C Draw a horizontal line from X1 to X2
+  GFX V,X,Y1,Y2,C Draw a vertical line from Y1 to Y2
+  GFX R,X1,Y1,X2,Y2,C  Draw a filled rectangle
+  GFX C           Clear active graphics mode to color 0
 
 File open/close and directory services will be added in the future.
 For now, press CTRL-ALT-DEL or send BREAK to drop into the RP6502

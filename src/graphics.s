@@ -356,6 +356,67 @@ gfx_plot_current:
         rts
 
 ; ----------------------------------------------------------
+; GFX subcommand dispatcher
+;   GFX M,<mode>        (mode: 180 or 240)
+;   GFX C               (clear)
+;   GFX P,<x>,<y>,<c>   (pixel)
+;   GFX H,<x1>,<y>,<x2>,<c>
+;   GFX V,<x>,<y1>,<y2>,<c>
+;   GFX R,<x1>,<y1>,<x2>,<y2>,<c>
+; ----------------------------------------------------------
+GFX:
+        cmp #'M'
+        beq @mode
+        cmp #'C'
+        beq @cls
+        cmp #'P'
+        beq @pset
+        cmp #'H'
+        beq @hline
+        cmp #'V'
+        beq @vline
+        cmp #'R'
+        beq @rect
+        jmp GFX_BAD
+
+@mode:
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp MODE
+
+@cls:
+        jsr CHRGET
+        beq @cls_ok
+        jmp GFX_BAD
+@cls_ok:
+        jmp CLS
+
+@pset:
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp PSET
+
+@hline:
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp HLINE
+
+@vline:
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp VLINE
+
+@rect:
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp GFX_RECT
+
+; ----------------------------------------------------------
 ; PSET x,y,c
 ; ----------------------------------------------------------
 PSET:
@@ -468,6 +529,130 @@ HLINE:
         bne @draw
         inc gfx_xhi
         bra @draw
+@done:
+        rts
+
+; ----------------------------------------------------------
+; GFX_RECT x1,y1,x2,y2,c
+; ----------------------------------------------------------
+GFX_RECT:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_x1lo
+        lda LINNUM+1
+        sta gfx_x1hi
+
+        jsr COMBYTE               ; y1 in X
+        stx gfx_y1
+
+        jsr CHKCOM
+        jsr FRMNUM
+        jsr GETADR                ; x2 in LINNUM
+        lda LINNUM
+        sta gfx_x2lo
+        lda LINNUM+1
+        sta gfx_x2hi
+
+        jsr COMBYTE               ; y2 in X
+        stx gfx_y2
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        ; validate x1
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        ; validate y1
+        lda gfx_y1
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+        ; validate x2
+        lda gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x2hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        ; validate y2
+        lda gfx_y2
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+
+        ; require x1 <= x2
+        lda gfx_x1hi
+        cmp gfx_x2hi
+        bcc :+
+        beq :++
+        jmp GFX_BAD
+:
+        bra @xy_ok
+:
+        lda gfx_x1lo
+        cmp gfx_x2lo
+        bcc @xy_ok
+        beq @xy_ok
+        jmp GFX_BAD
+
+@xy_ok:
+        ; require y1 <= y2
+        lda gfx_y1
+        cmp gfx_y2
+        bcc @draw_rows
+        beq @draw_rows
+        jmp GFX_BAD
+
+@draw_rows:
+        lda gfx_y1
+        sta gfx_y
+
+@row:
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+
+@col:
+        jsr gfx_plot_current
+        lda gfx_xhi
+        cmp gfx_x2hi
+        bne @step_col
+        lda gfx_xlo
+        cmp gfx_x2lo
+        beq @next_row
+@step_col:
+        inc gfx_xlo
+        bne @col
+        inc gfx_xhi
+        bra @col
+
+@next_row:
+        lda gfx_y
+        cmp gfx_y2
+        beq @done
+        inc gfx_y
+        bra @row
+
 @done:
         rts
 
