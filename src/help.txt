@@ -18,6 +18,12 @@ Launch arguments:
   -c2     caps mode invert (swap case)
   <name>  program is loaded and run automatically
 
+Graphics commands (early preview):
+  MODE 180        320x180 bitmap mode (8-bit color index)
+  MODE 240        320x240 bitmap mode (4-bit color index)
+  PSET X,Y,C      Plot pixel at X,Y with color C
+  CLS             Clear active graphics mode to color 0
+
 File open/close and directory services will be added in the future.
 For now, press CTRL-ALT-DEL or send BREAK to drop into the RP6502
 monitor where you can list and change directories or unlink files.

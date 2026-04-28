@@ -90,6 +90,16 @@ auto_run:      .res 1   ; cold-boot auto-load + RUN state machine
                         ;          (the 'R' is emitted directly from
                         ;          the EOF→start_auto_run handoff)
 
+gfx_mode:      .res 1   ; 0=off/text, 1=320x180 8bpp, 2=320x240 4bpp
+gfx_xlo:       .res 1
+gfx_xhi:       .res 1
+gfx_y:         .res 1
+gfx_color:     .res 1
+gfx_tmp:       .res 1
+gfx_mulhi:     .res 1
+gfx_offlo:     .res 1
+gfx_offhi:     .res 1
+
 CHRGET:
 TXTPTR  = <(GENERIC_TXTPTR  - GENERIC_CHRGET + CHRGET)
 CHRGOT  = <(GENERIC_CHRGOT  - GENERIC_CHRGET + CHRGET)

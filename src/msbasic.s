@@ -40,3 +40,4 @@
 .include "init.s"
 .include "extra.s"
 .include "caps.s"
+.include "graphics.s"
