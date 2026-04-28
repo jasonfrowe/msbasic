@@ -52,6 +52,12 @@ COLD_START:
         stz lsav_fd
         stz chrout_ptr+1      ; non-zero hi byte = chrout-to-buffer mode
         stz auto_run          ; auto-load/RUN state machine (see loadsave.s)
+        stz gfx_mode
+        stz gfx_bitmap_plane  ; default bitmap on plane 0
+        lda #$02
+        sta gfx_console_plane ; default console overlay on plane 2
+        lda #$01
+        sta gfx_console_enable ; overlay enabled by default
         ldx #TEMPST
         stx TEMPPT
 

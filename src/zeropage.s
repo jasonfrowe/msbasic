@@ -91,6 +91,9 @@ auto_run:      .res 1   ; cold-boot auto-load + RUN state machine
                         ;          the EOF→start_auto_run handoff)
 
 gfx_mode:      .res 1   ; 0=off/text, 1=320x180 8bpp, 2=320x240 4bpp
+gfx_bitmap_plane: .res 1
+gfx_console_plane: .res 1
+gfx_console_enable: .res 1
 gfx_xlo:       .res 1
 gfx_xhi:       .res 1
 gfx_y:         .res 1

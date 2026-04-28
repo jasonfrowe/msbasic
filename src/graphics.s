@@ -44,7 +44,7 @@ gfx_xreg_canvas:
         rts
 
 ; ----------------------------------------------------------
-; gfx_xreg_mode3 -- xreg(1,0,1,3,options,cfg,0,0)
+; gfx_xreg_mode3 -- xreg(1,0,1,3,options,cfg,plane,0,0)
 ; A = options (8bpp:3, 4bpp:2)
 ; Returns C=0 on success, C=1 on failure.
 ; ----------------------------------------------------------
@@ -74,7 +74,8 @@ gfx_xreg_mode3:
         sta RIA_XSTACK            ; CONFIG low
 
         stz RIA_XSTACK            ; PLANE high
-        stz RIA_XSTACK            ; PLANE low
+        lda gfx_bitmap_plane
+        sta RIA_XSTACK            ; PLANE low
         stz RIA_XSTACK            ; BEGIN high
         stz RIA_XSTACK            ; BEGIN low
         stz RIA_XSTACK            ; END high
@@ -91,6 +92,97 @@ gfx_xreg_mode3:
         rts
 @ok:
         clc
+        rts
+
+; ----------------------------------------------------------
+; gfx_xreg_console_overlay -- xreg(1,0,1,0,plane,0,0)
+; Programs the built-in console on the selected plane across the full canvas.
+; Returns C=0 on success, C=1 on failure.
+; ----------------------------------------------------------
+gfx_xreg_console_overlay:
+        lda #RIA_OP_ZXSTACK
+        sta RIA_OP
+
+        lda #$01
+        sta RIA_XSTACK            ; device 1 (VGA)
+        stz RIA_XSTACK            ; channel 0
+        lda #$01
+        sta RIA_XSTACK            ; address 1 (MODE)
+
+        stz RIA_XSTACK            ; MODE high
+        stz RIA_XSTACK            ; MODE low = 0 (console)
+
+        stz RIA_XSTACK            ; PLANE high
+        lda gfx_console_plane
+        sta RIA_XSTACK            ; PLANE low
+
+        stz RIA_XSTACK            ; BEGIN high
+        stz RIA_XSTACK            ; BEGIN low = 0
+        stz RIA_XSTACK            ; END high
+        stz RIA_XSTACK            ; END low = 0 (full height)
+
+        lda #RIA_OP_XREG
+        sta RIA_OP
+        jsr RIA_SPIN
+        cpx #$FF
+        bne @ok
+        cmp #$FF
+        bne @ok
+        sec
+        rts
+@ok:
+        clc
+        rts
+
+; ----------------------------------------------------------
+; gfx_apply_mode_current
+; Reprogram current graphics canvas and layers from state.
+; gfx_mode: 1=180/8bpp, 2=240/4bpp
+; ----------------------------------------------------------
+gfx_apply_mode_current:
+        lda gfx_mode
+        cmp #$01
+        beq @m180
+        cmp #$02
+        beq @m240
+        sec
+        rts
+
+@m180:
+        lda #180
+        jsr gfx_write_mode3_config
+        lda #GFX_CANVAS_320X180
+        jsr gfx_xreg_canvas
+        bcs @bad
+        lda #$03
+        jsr gfx_xreg_mode3
+        bcs @bad
+        lda gfx_console_enable
+        beq @ok
+        jsr gfx_xreg_console_overlay
+        bcs @bad
+@ok:
+        clc
+        rts
+
+@m240:
+        lda #240
+        jsr gfx_write_mode3_config
+        lda #GFX_CANVAS_320X240
+        jsr gfx_xreg_canvas
+        bcs @bad
+        lda #$02
+        jsr gfx_xreg_mode3
+        bcs @bad
+        lda gfx_console_enable
+        beq @ok
+        jsr gfx_xreg_console_overlay
+        bcs @bad
+        clc
+        rts
+
+@bad:
+        sec
         rts
 
 ; ----------------------------------------------------------
@@ -139,8 +231,12 @@ gfx_write_mode3_config:
 
 ; ----------------------------------------------------------
 ; MODE <expr>
+;   MODE 0   -> restore console canvas
 ;   MODE 180 -> 320x180 bitmap, 8bpp
 ;   MODE 240 -> 320x240 bitmap, 4bpp
+; Optional args:
+;   MODE <m>,<bp>
+;   MODE <m>,<bp>,<cp|255>
 ; ----------------------------------------------------------
 MODE:
         jsr FRMNUM
@@ -149,6 +245,39 @@ MODE:
         bne @bad
 
         lda LINNUM
+        sta gfx_tmp
+
+        jsr CHRGOT
+        beq @mode_value_ready
+        cmp #','
+        bne @bad
+        jsr CHRGET
+        jsr GETBYT                ; X = bitmap plane
+        cpx #$03
+        bcs @bad
+        stx gfx_bitmap_plane
+
+        jsr CHRGOT
+        beq @mode_value_ready
+        cmp #','
+        bne @bad
+        jsr CHRGET
+        jsr GETBYT                ; X = console plane or 255 to disable
+        cpx #$FF
+        beq @overlay_off
+        cpx #$03
+        bcs @bad
+        stx gfx_console_plane
+        lda #$01
+        sta gfx_console_enable
+        bra @mode_value_ready
+
+@overlay_off:
+        stz gfx_console_enable
+
+@mode_value_ready:
+        lda gfx_tmp
+        beq @m0
         cmp #180
         beq @m180
         cmp #240
@@ -157,40 +286,38 @@ MODE:
         ldx #ERR_ILLQTY
         jmp ERROR
 
-@m180:
-        lda #180
-        jsr gfx_write_mode3_config
-        lda #GFX_CANVAS_320X180
+@m0:
+        lda #$00
         jsr gfx_xreg_canvas
         bcs @bad
-        lda #$03                  ; 8bpp
-        jsr gfx_xreg_mode3
-        bcs @bad
+        stz gfx_mode
+        rts
+
+@m180:
         lda #$01
         sta gfx_mode
+        jsr gfx_apply_mode_current
+        bcs @bad
         rts
 
 @m240:
-        lda #240
-        jsr gfx_write_mode3_config
-        lda #GFX_CANVAS_320X240
-        jsr gfx_xreg_canvas
-        bcs @bad
-        lda #$02                  ; 4bpp
-        jsr gfx_xreg_mode3
-        bcs @bad
         lda #$02
         sta gfx_mode
+        jsr gfx_apply_mode_current
+        bcs @bad
         rts
 
 ; ----------------------------------------------------------
 ; CLS
-;   Clear active graphics framebuffer to color 0.
+;   Clear active graphics framebuffer to color 0 and clear the
+;   visible console terminal when present.
 ; ----------------------------------------------------------
 CLS:
         lda gfx_mode
-        beq @done
+        beq @clear_console_only
 
+        ; Clear bitmap framebuffer.
+        lda gfx_mode
         lda #$01
         sta RIA_STEP0
         lda #<GFX_FB_ADDR
@@ -213,6 +340,15 @@ CLS:
         bne @byte
         dex
         bne @page
+
+        ; If console overlay is enabled, clear the terminal too.
+        lda gfx_console_enable
+        beq @done
+
+@clear_console_only:
+        lda #$0C                  ; FF = clear screen, home cursor
+        jsr OUTDO
+        stz POSX
 @done:
         rts
 
@@ -357,35 +493,100 @@ gfx_plot_current:
 
 ; ----------------------------------------------------------
 ; GFX subcommand dispatcher
-;   GFX M,<mode>        (mode: 180 or 240)
-;   GFX C               (clear)
-;   GFX P,<x>,<y>,<c>   (pixel)
-;   GFX H,<x1>,<y>,<x2>,<c>
-;   GFX V,<x>,<y1>,<y2>,<c>
-;   GFX R,<x1>,<y1>,<x2>,<y2>,<c>
+;   GFX MODE,<mode>         (aliases: M)
+;   GFX CLEAR               (aliases: C)
+;   GFX PSET,<x>,<y>,<c>    (aliases: P)
+;   GFX HLINE,<x1>,<y>,<x2>,<c> (aliases: H)
+;   GFX VLINE,<x>,<y1>,<y2>,<c> (aliases: V)
+;   GFX RECT,<x1>,<y1>,<x2>,<y2>,<c> (aliases: R)
+;   GFX BITMAP,<plane>      (aliases: B)
+;   GFX OVERLAY,<plane|255> (aliases: O)
 ; ----------------------------------------------------------
 GFX:
         cmp #'M'
-        beq @mode
+        bne :+
+        jmp @mode
+:       
         cmp #'C'
-        beq @cls
+        bne :+
+        jmp @cls
+:       
+        cmp #TOKEN_CLEAR
+        bne :+
+        jmp @cls
+:       
         cmp #'P'
-        beq @pset
+        bne :+
+        jmp @pset
+:       
         cmp #'H'
-        beq @hline
+        bne :+
+        jmp @hline
+:       
         cmp #'V'
-        beq @vline
+        bne :+
+        jmp @vline
+:       
         cmp #'R'
-        beq @rect
+        bne :+
+        jmp @rect
+:       
+        cmp #'B'
+        bne :+
+        jmp @bitmap_plane
+:       
+        cmp #'O'
+        bne :+
+        jmp @overlay_plane
+:       
         jmp GFX_BAD
 
 @mode:
         jsr CHRGET
+        cmp #','
+        beq @mode_sep
+        cmp #'O'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'D'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@mode_sep:
         lda #','
         jsr SYNCHR
         jmp MODE
 
 @cls:
+        jsr CHRGET
+        beq @cls_ok
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'R'
+        beq :+
+        jmp GFX_BAD
+:       
         jsr CHRGET
         beq @cls_ok
         jmp GFX_BAD
@@ -394,27 +595,219 @@ GFX:
 
 @pset:
         jsr CHRGET
+        cmp #','
+        beq @pset_sep
+        cmp #'S'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@pset_sep:
         lda #','
         jsr SYNCHR
         jmp PSET
 
 @hline:
         jsr CHRGET
+        cmp #','
+        beq @hline_sep
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'I'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'N'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@hline_sep:
         lda #','
         jsr SYNCHR
         jmp HLINE
 
 @vline:
         jsr CHRGET
+        cmp #','
+        beq @vline_sep
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'I'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'N'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@vline_sep:
         lda #','
         jsr SYNCHR
         jmp VLINE
 
 @rect:
         jsr CHRGET
+        cmp #','
+        beq @rect_sep
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'C'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@rect_sep:
         lda #','
         jsr SYNCHR
         jmp GFX_RECT
+
+@bitmap_plane:
+        jsr CHRGET
+        cmp #','
+        beq @bitmap_sep
+        cmp #'I'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'M'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'P'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@bitmap_sep:
+        lda #','
+        jsr SYNCHR
+        jsr GETBYT
+        cpx #$03
+        bcc :+
+        jmp GFX_BAD
+:       
+        stx gfx_bitmap_plane
+        lda gfx_mode
+        beq @bitmap_done
+        jsr gfx_apply_mode_current
+        bcc @bitmap_done
+        jmp GFX_BAD
+@bitmap_done:
+        rts
+
+@overlay_plane:
+        jsr CHRGET
+        cmp #','
+        beq @overlay_sep
+        cmp #'V'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'R'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'Y'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@overlay_sep:
+        lda #','
+        jsr SYNCHR
+        jsr GETBYT
+        cpx #$FF
+        beq @overlay_off
+        cpx #$03
+        bcc :+
+        jmp GFX_BAD
+:       
+        stx gfx_console_plane
+        lda #$01
+        sta gfx_console_enable
+        lda gfx_mode
+        beq @overlay_done
+        jsr gfx_apply_mode_current
+        bcc @overlay_done
+        jmp GFX_BAD
+@overlay_done:
+        rts
+
+@overlay_off:
+        stz gfx_console_enable
+        lda gfx_mode
+        beq @overlay_done
+        jsr gfx_apply_mode_current
+        bcc @overlay_done
+        jmp GFX_BAD
+        rts
 
 ; ----------------------------------------------------------
 ; PSET x,y,c

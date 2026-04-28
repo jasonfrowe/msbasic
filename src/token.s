@@ -45,7 +45,7 @@
         keyword_rts "PRINT", PRINT, TOKEN_PRINT
         keyword_rts "CONT", CONT
         keyword_rts "LIST", LIST
-        keyword_rts "CLEAR", CLEAR
+        keyword_rts "CLEAR", CLEAR, TOKEN_CLEAR
         keyword_rts "CMD", CMD
         keyword_rts "SYS", SYS
         keyword_rts "OPEN", OPEN
