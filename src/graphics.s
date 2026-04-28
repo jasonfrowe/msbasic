@@ -462,11 +462,56 @@ gfx_plot_current:
 
         lda gfx_mode
         cmp #$01
-        beq @plot8
+        bne :+
+        jmp @plot8
+: 
 
-        ; 4bpp: byte_index = offset>>1
-        lsr gfx_offhi
-        ror gfx_offlo
+        ; 4bpp: byte_index = y*160 + (x>>1)
+        ; Compute y*32 in gfx_tmp/gfx_mulhi.
+        lda gfx_y
+        sta gfx_tmp
+        stz gfx_mulhi
+        ldx #$05
+@mul32:
+        asl gfx_tmp
+        rol gfx_mulhi
+        dex
+        bne @mul32
+
+        ; Compute y*128 in gfx_offlo/gfx_offhi.
+        lda gfx_y
+        sta gfx_offlo
+        stz gfx_offhi
+        ldx #$07
+@mul128:
+        asl gfx_offlo
+        rol gfx_offhi
+        dex
+        bne @mul128
+
+        ; y*160 = y*128 + y*32
+        clc
+        lda gfx_offlo
+        adc gfx_tmp
+        sta gfx_offlo
+        lda gfx_offhi
+        adc gfx_mulhi
+        sta gfx_offhi
+
+        ; Add x>>1 (x is 0..319).
+        lda gfx_xlo
+        sta gfx_tmp
+        lda gfx_xhi
+        sta gfx_mulhi
+        lsr gfx_mulhi
+        ror gfx_tmp
+        clc
+        lda gfx_offlo
+        adc gfx_tmp
+        sta gfx_offlo
+        lda gfx_offhi
+        adc gfx_mulhi
+        sta gfx_offhi
 
         clc
         lda gfx_offlo
