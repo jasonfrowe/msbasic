@@ -46,7 +46,7 @@
         keyword_rts "CONT", CONT
         keyword_rts "LIST", LIST
         keyword_rts "CLEAR", CLEAR
-        keyword_rts "CMD", CMD
+        keyword_rts "VLINE", VLINE
         keyword_rts "MODE", MODE
         keyword_rts "PSET", PSET
         keyword_rts "CLS", CLS

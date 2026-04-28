@@ -379,9 +379,13 @@ PSET:
         stx gfx_color
 
         jsr gfx_validate_x_current
-        bcs GFX_BAD
+        bcc :+
+        jmp GFX_BAD
+:       
         jsr gfx_validate_y_current
-        bcs GFX_BAD
+        bcc :+
+        jmp GFX_BAD
+:       
         jsr gfx_plot_current
         rts
 
@@ -417,25 +421,34 @@ HLINE:
         stx gfx_color
 
         jsr gfx_validate_x_current
-        bcs GFX_BAD
+        bcc :+
+        jmp GFX_BAD
+:       
         jsr gfx_validate_y_current
-        bcs GFX_BAD
+        bcc :+
+        jmp GFX_BAD
+:       
 
         ; validate x2 in gfx_x2lo/gfx_x2hi
         lda gfx_x2hi
         beq @x2_ok
         cmp #$01
-        bne GFX_BAD
+        beq :+
+        jmp GFX_BAD
+:       
         lda gfx_x2lo
         cmp #$40
-        bcs GFX_BAD
+        bcc @x2_ok
+        jmp GFX_BAD
 @x2_ok:
 
         ; require x1 <= x2
         lda gfx_xhi
         cmp gfx_x2hi
         bcc @draw
-        bne GFX_BAD
+        beq :+
+        jmp GFX_BAD
+:       
         lda gfx_xlo
         cmp gfx_x2lo
         bcc @draw
@@ -454,6 +467,77 @@ HLINE:
         inc gfx_xlo
         bne @draw
         inc gfx_xhi
+        bra @draw
+@done:
+        rts
+
+; ----------------------------------------------------------
+; VLINE x,y1,y2,c
+; ----------------------------------------------------------
+VLINE:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_xlo
+        lda LINNUM+1
+        sta gfx_xhi
+
+        jsr COMBYTE               ; y1 in X
+        stx gfx_y
+
+        jsr CHKCOM
+        jsr FRMNUM
+        jsr GETADR                ; y2 in LINNUM
+        lda LINNUM+1
+        beq :+
+        jmp GFX_BAD
+:       
+        lda LINNUM
+        sta gfx_y2
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:       
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:       
+
+        ; validate y2
+        lda gfx_y
+        pha
+        lda gfx_y2
+        sta gfx_y
+        jsr gfx_validate_y_current
+        pla
+        sta gfx_y
+        bcc :+
+        jmp GFX_BAD
+:       
+
+        ; require y1 <= y2
+        lda gfx_y
+        cmp gfx_y2
+        bcc @draw
+        beq @draw
+        jmp GFX_BAD
+
+@draw:
+        jsr gfx_plot_current
+        lda gfx_y
+        cmp gfx_y2
+        beq @done
+        inc gfx_y
         bra @draw
 @done:
         rts
