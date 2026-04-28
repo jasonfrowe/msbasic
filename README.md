@@ -12,3 +12,11 @@ BASIC for the Picocomputer 6502 so the ability to merge our changes
 upstream isn't needed. Many files were heavily modified to remove
 the ifdef noise and enable the linker to manage memory. Files in
 `src/mist64` could be used without modification.
+
+## Graphics demos
+
+Example programs are in `examples/`:
+
+- `graphics-smoke.bas` - quick primitive test (`GFX P/H/V/R`).
+- `mandelbrot240.bas` - Mandelbrot render in `GFX M,240`.
+- `mandelbrot180.bas` - Mandelbrot render in `GFX M,180`.
