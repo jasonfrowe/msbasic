@@ -108,6 +108,17 @@ gfx_y2:        .res 1
 gfx_x1lo:      .res 1
 gfx_x1hi:      .res 1
 gfx_y1:        .res 1
+gfx_dxlo:      .res 1
+gfx_dxhi:      .res 1
+gfx_dylo:      .res 1
+gfx_dyhi:      .res 1
+gfx_errlo:     .res 1
+gfx_errhi:     .res 1
+gfx_ctrlo:     .res 1
+gfx_ctrhi:     .res 1
+gfx_sx:        .res 1
+gfx_sy:        .res 1
+gfx_rad:       .res 1
 
 CHRGET:
 TXTPTR  = <(GENERIC_TXTPTR  - GENERIC_CHRGET + CHRGET)

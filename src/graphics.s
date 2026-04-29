@@ -574,6 +574,9 @@ gfx_plot_current:
 ;   GFX CLEAR               (aliases: C)
 ;   GFX CCLEAR              (console clear)
 ;   GFX CLEAR,ALL           (bitmap+console clear)
+;   GFX CIRCLE,<x>,<y>,<r>,<c>
+;   GFX LINE,<x1>,<y1>,<x2>,<y2>,<c> (aliases: L)
+;   GFX BOX,<x1>,<y1>,<x2>,<y2>,<c>
 ;   GFX PSET,<x>,<y>,<c>    (aliases: P)
 ;   GFX HLINE,<x1>,<y>,<x2>,<c> (aliases: H)
 ;   GFX VLINE,<x>,<y1>,<y2>,<c> (aliases: V)
@@ -604,6 +607,10 @@ GFX:
         bne :+
         jmp @hline
 :       
+        cmp #'L'
+        bne :+
+        jmp @line
+:       
         cmp #'V'
         bne :+
         jmp @vline
@@ -614,7 +621,7 @@ GFX:
 :       
         cmp #'B'
         bne :+
-        jmp @bitmap_plane
+        jmp @bcmd
 :       
         cmp #'O'
         bne :+
@@ -652,13 +659,21 @@ GFX:
 
 @cls:
         jsr CHRGET
-        beq @cls_bitmap
+        bne :+
+        jmp @cls_bitmap
+:       
         cmp #','
-        beq @cls_all_sep
+        bne :+
+        jmp @cls_all_sep
+:       
         cmp #TOKEN_CLEAR
-        beq @cclear_token_tail
+        bne :+
+        jmp @cclear_token_tail
+:       
         cmp #'C'
         beq @cclear_l
+        cmp #'I'
+        beq @circle_word_i
         cmp #'L'
         beq :+
         jmp GFX_BAD
@@ -717,6 +732,32 @@ GFX:
         jmp GFX_BAD
 @cls_console:
         jmp GFX_CCLEAR
+
+@circle_word_i:
+        jsr CHRGET
+        cmp #'R'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'C'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'L'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp GFX_CIRCLE
 
 @cls_all_sep:
         jsr CHRGET
@@ -793,6 +834,30 @@ GFX:
         jsr SYNCHR
         jmp HLINE
 
+@line:
+        jsr CHRGET
+        cmp #','
+        beq @line_sep
+        cmp #'I'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'N'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'E'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+@line_sep:
+        lda #','
+        jsr SYNCHR
+        jmp GFX_LINE
+
 @vline:
         jsr CHRGET
         cmp #','
@@ -865,6 +930,54 @@ GFX:
         jmp GFX_BAD
 :       
         jmp GFX_RESET
+
+@bcmd:
+        jsr CHRGET
+        cmp #','
+        bne :+
+        jmp @bitmap_sep
+:       
+        cmp #'I'
+        beq :+
+        cmp #'O'
+        beq @box_word_o
+        jmp GFX_BAD
+:
+        jsr CHRGET
+        cmp #'T'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'M'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'A'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #'P'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        cmp #','
+        beq @bitmap_sep
+        jmp GFX_BAD
+
+@box_word_o:
+        jsr CHRGET
+        cmp #'X'
+        beq :+
+        jmp GFX_BAD
+:       
+        jsr CHRGET
+        lda #','
+        jsr SYNCHR
+        jmp GFX_BOX
 
 @bitmap_plane:
         jsr CHRGET
@@ -1376,6 +1489,722 @@ VLINE:
         bra @draw
 @done:
         rts
+
+; ----------------------------------------------------------
+; gfx_step_x_current / gfx_step_y_current
+;   Step current point by +/-1 based on gfx_sx/gfx_sy.
+;   gfx_sx, gfx_sy: 0=+1, non-zero=-1
+; ----------------------------------------------------------
+gfx_step_x_current:
+        lda gfx_sx
+        beq @x_pos
+        lda gfx_xlo
+        bne :+
+        dec gfx_xhi
+:       
+        dec gfx_xlo
+        rts
+@x_pos:
+        inc gfx_xlo
+        bne :+
+        inc gfx_xhi
+:       
+        rts
+
+gfx_step_y_current:
+        lda gfx_sy
+        beq @y_pos
+        dec gfx_y
+        rts
+@y_pos:
+        inc gfx_y
+        rts
+
+; ----------------------------------------------------------
+; GFX_LINE x1,y1,x2,y2,c
+; ----------------------------------------------------------
+GFX_LINE:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_x1lo
+        lda LINNUM+1
+        sta gfx_x1hi
+
+        jsr COMBYTE               ; y1 in X
+        stx gfx_y1
+
+        jsr CHKCOM
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_x2lo
+        lda LINNUM+1
+        sta gfx_x2hi
+
+        jsr COMBYTE               ; y2 in X
+        stx gfx_y2
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        ; Validate endpoints.
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_y1
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x2hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_y2
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+
+        ; dx and sx
+        lda gfx_x2hi
+        cmp gfx_x1hi
+        bcc @dx_neg
+        bne @dx_pos
+        lda gfx_x2lo
+        cmp gfx_x1lo
+        bcc @dx_neg
+@dx_pos:
+        stz gfx_sx
+        sec
+        lda gfx_x2lo
+        sbc gfx_x1lo
+        sta gfx_dxlo
+        lda gfx_x2hi
+        sbc gfx_x1hi
+        sta gfx_dxhi
+        bra @dy_calc
+
+@dx_neg:
+        lda #$01
+        sta gfx_sx
+        sec
+        lda gfx_x1lo
+        sbc gfx_x2lo
+        sta gfx_dxlo
+        lda gfx_x1hi
+        sbc gfx_x2hi
+        sta gfx_dxhi
+
+@dy_calc:
+        ; dy and sy
+        lda gfx_y2
+        cmp gfx_y1
+        bcc @dy_neg
+        stz gfx_sy
+        sec
+        lda gfx_y2
+        sbc gfx_y1
+        sta gfx_dylo
+        stz gfx_dyhi
+        bra @setup
+
+@dy_neg:
+        lda #$01
+        sta gfx_sy
+        sec
+        lda gfx_y1
+        sbc gfx_y2
+        sta gfx_dylo
+        stz gfx_dyhi
+
+@setup:
+        ; current point = (x1,y1)
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        lda gfx_y1
+        sta gfx_y
+
+        stz gfx_errlo
+        stz gfx_errhi
+
+        ; Choose major axis.
+        lda gfx_dxhi
+        cmp gfx_dyhi
+        bcc @y_major
+        bne @x_major
+        lda gfx_dxlo
+        cmp gfx_dylo
+        bcc @y_major
+
+@x_major:
+        lda gfx_dxlo
+        sta gfx_ctrlo
+        lda gfx_dxhi
+        sta gfx_ctrhi
+
+@x_loop:
+        jsr gfx_plot_current
+        lda gfx_ctrlo
+        ora gfx_ctrhi
+        bne :+
+        jmp @line_done
+:
+
+        jsr gfx_step_x_current
+
+        ; err += dy
+        clc
+        lda gfx_errlo
+        adc gfx_dylo
+        sta gfx_errlo
+        lda gfx_errhi
+        adc gfx_dyhi
+        sta gfx_errhi
+
+        ; if err >= dx then err -= dx; step y
+        lda gfx_errhi
+        cmp gfx_dxhi
+        bcc @x_no_step_y
+        bne @x_step_y
+        lda gfx_errlo
+        cmp gfx_dxlo
+        bcc @x_no_step_y
+@x_step_y:
+        sec
+        lda gfx_errlo
+        sbc gfx_dxlo
+        sta gfx_errlo
+        lda gfx_errhi
+        sbc gfx_dxhi
+        sta gfx_errhi
+        jsr gfx_step_y_current
+
+@x_no_step_y:
+        lda gfx_ctrlo
+        bne :+
+        dec gfx_ctrhi
+:       
+        dec gfx_ctrlo
+        jmp @x_loop
+
+@y_major:
+        lda gfx_dylo
+        sta gfx_ctrlo
+        lda gfx_dyhi
+        sta gfx_ctrhi
+
+@y_loop:
+        jsr gfx_plot_current
+        lda gfx_ctrlo
+        ora gfx_ctrhi
+        beq @line_done
+
+        jsr gfx_step_y_current
+
+        ; err += dx
+        clc
+        lda gfx_errlo
+        adc gfx_dxlo
+        sta gfx_errlo
+        lda gfx_errhi
+        adc gfx_dxhi
+        sta gfx_errhi
+
+        ; if err >= dy then err -= dy; step x
+        lda gfx_errhi
+        cmp gfx_dyhi
+        bcc @y_no_step_x
+        bne @y_step_x
+        lda gfx_errlo
+        cmp gfx_dylo
+        bcc @y_no_step_x
+@y_step_x:
+        sec
+        lda gfx_errlo
+        sbc gfx_dylo
+        sta gfx_errlo
+        lda gfx_errhi
+        sbc gfx_dyhi
+        sta gfx_errhi
+        jsr gfx_step_x_current
+
+@y_no_step_x:
+        lda gfx_ctrlo
+        bne :+
+        dec gfx_ctrhi
+:       
+        dec gfx_ctrlo
+        jmp @y_loop
+
+@line_done:
+        rts
+
+; ----------------------------------------------------------
+; GFX_BOX x1,y1,x2,y2,c
+;   Draw an outline rectangle.
+; ----------------------------------------------------------
+GFX_BOX:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_x1lo
+        lda LINNUM+1
+        sta gfx_x1hi
+
+        jsr COMBYTE               ; y1 in X
+        stx gfx_y1
+
+        jsr CHKCOM
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_x2lo
+        lda LINNUM+1
+        sta gfx_x2hi
+
+        jsr COMBYTE               ; y2 in X
+        stx gfx_y2
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        ; validate x1/y1/x2/y2 and ordering
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_y1
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x2hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_y2
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_x1hi
+        cmp gfx_x2hi
+        bcc :+
+        beq :++
+        jmp GFX_BAD
+:
+        bra @xy_ok
+:
+        lda gfx_x1lo
+        cmp gfx_x2lo
+        bcc @xy_ok
+        beq @xy_ok
+        jmp GFX_BAD
+
+@xy_ok:
+        lda gfx_y1
+        cmp gfx_y2
+        bcc @draw_top
+        beq @draw_top
+        jmp GFX_BAD
+
+@draw_top:
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        lda gfx_y1
+        sta gfx_y
+@top_loop:
+        jsr gfx_plot_current
+        lda gfx_xhi
+        cmp gfx_x2hi
+        bne @top_step
+        lda gfx_xlo
+        cmp gfx_x2lo
+        beq @draw_bottom
+@top_step:
+        inc gfx_xlo
+        bne @top_loop
+        inc gfx_xhi
+        bra @top_loop
+
+@draw_bottom:
+        lda gfx_y2
+        cmp gfx_y1
+        bne :+
+        bra @draw_left
+:
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        lda gfx_y2
+        sta gfx_y
+@bot_loop:
+        jsr gfx_plot_current
+        lda gfx_xhi
+        cmp gfx_x2hi
+        bne @bot_step
+        lda gfx_xlo
+        cmp gfx_x2lo
+        beq @draw_left
+@bot_step:
+        inc gfx_xlo
+        bne @bot_loop
+        inc gfx_xhi
+        bra @bot_loop
+
+@draw_left:
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        lda gfx_y1
+        sta gfx_y
+@left_loop:
+        jsr gfx_plot_current
+        lda gfx_y
+        cmp gfx_y2
+        beq @draw_right
+        inc gfx_y
+        bra @left_loop
+
+@draw_right:
+        lda gfx_x2lo
+        cmp gfx_x1lo
+        bne :+
+        lda gfx_x2hi
+        cmp gfx_x1hi
+        beq @box_done
+:
+        lda gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x2hi
+        sta gfx_xhi
+        lda gfx_y1
+        sta gfx_y
+@right_loop:
+        jsr gfx_plot_current
+        lda gfx_y
+        cmp gfx_y2
+        beq @box_done
+        inc gfx_y
+        bra @right_loop
+
+@box_done:
+        rts
+
+; ----------------------------------------------------------
+; gfx_circle_plot8
+;   Plot 8 symmetric points around center (gfx_x1lo/hi, gfx_y1)
+;   using offsets gfx_x2lo (x), gfx_y2 (y).
+; ----------------------------------------------------------
+gfx_circle_plot8:
+        ; (cx+x, cy+y)
+        clc
+        lda gfx_x1lo
+        adc gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        adc #$00
+        sta gfx_xhi
+        clc
+        lda gfx_y1
+        adc gfx_y2
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx-x, cy+y)
+        sec
+        lda gfx_x1lo
+        sbc gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sbc #$00
+        sta gfx_xhi
+        clc
+        lda gfx_y1
+        adc gfx_y2
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx+x, cy-y)
+        clc
+        lda gfx_x1lo
+        adc gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        adc #$00
+        sta gfx_xhi
+        sec
+        lda gfx_y1
+        sbc gfx_y2
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx-x, cy-y)
+        sec
+        lda gfx_x1lo
+        sbc gfx_x2lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sbc #$00
+        sta gfx_xhi
+        sec
+        lda gfx_y1
+        sbc gfx_y2
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx+y, cy+x)
+        clc
+        lda gfx_x1lo
+        adc gfx_y2
+        sta gfx_xlo
+        lda gfx_x1hi
+        adc #$00
+        sta gfx_xhi
+        clc
+        lda gfx_y1
+        adc gfx_x2lo
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx-y, cy+x)
+        sec
+        lda gfx_x1lo
+        sbc gfx_y2
+        sta gfx_xlo
+        lda gfx_x1hi
+        sbc #$00
+        sta gfx_xhi
+        clc
+        lda gfx_y1
+        adc gfx_x2lo
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx+y, cy-x)
+        clc
+        lda gfx_x1lo
+        adc gfx_y2
+        sta gfx_xlo
+        lda gfx_x1hi
+        adc #$00
+        sta gfx_xhi
+        sec
+        lda gfx_y1
+        sbc gfx_x2lo
+        sta gfx_y
+        jsr gfx_plot_current
+
+        ; (cx-y, cy-x)
+        sec
+        lda gfx_x1lo
+        sbc gfx_y2
+        sta gfx_xlo
+        lda gfx_x1hi
+        sbc #$00
+        sta gfx_xhi
+        sec
+        lda gfx_y1
+        sbc gfx_x2lo
+        sta gfx_y
+        jsr gfx_plot_current
+        rts
+
+; ----------------------------------------------------------
+; GFX_CIRCLE x,y,r,c
+;   Midpoint circle (full circle).
+; ----------------------------------------------------------
+GFX_CIRCLE:
+        lda gfx_mode
+        bne @mode_ok
+        ldx #ERR_ILLQTY
+        jmp ERROR
+
+@mode_ok:
+        jsr FRMNUM
+        jsr GETADR
+        lda LINNUM
+        sta gfx_x1lo
+        lda LINNUM+1
+        sta gfx_x1hi
+
+        jsr COMBYTE               ; y center in X
+        stx gfx_y1
+
+        jsr COMBYTE               ; radius in X
+        stx gfx_rad
+
+        jsr COMBYTE               ; color in X
+        stx gfx_color
+
+        ; Validate center.
+        lda gfx_x1lo
+        sta gfx_xlo
+        lda gfx_x1hi
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_y1
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+
+        ; Validate center +/- radius in both axes.
+        sec
+        lda gfx_x1lo
+        sbc gfx_rad
+        sta gfx_xlo
+        lda gfx_x1hi
+        sbc #$00
+        sta gfx_xhi
+        bcs :+
+        jmp GFX_BAD
+:
+        clc
+        lda gfx_x1lo
+        adc gfx_rad
+        sta gfx_xlo
+        lda gfx_x1hi
+        adc #$00
+        sta gfx_xhi
+        jsr gfx_validate_x_current
+        bcc :+
+        jmp GFX_BAD
+:
+        lda gfx_y1
+        cmp gfx_rad
+        bcs :+
+        jmp GFX_BAD
+:
+        clc
+        lda gfx_y1
+        adc gfx_rad
+        sta gfx_y
+        jsr gfx_validate_y_current
+        bcc :+
+        jmp GFX_BAD
+:
+
+        ; x = 0, y = radius, d = 1 - radius
+        stz gfx_x2lo
+        lda gfx_rad
+        sta gfx_y2
+        lda #$01
+        sec
+        sbc gfx_rad
+        sta gfx_errlo
+        lda #$00
+        sbc #$00
+        sta gfx_errhi
+
+@loop:
+        lda gfx_x2lo
+        cmp gfx_y2
+        bcc :+
+        beq :+
+        rts
+:
+        jsr gfx_circle_plot8
+
+        lda gfx_errhi
+        bmi @d_neg
+
+        ; d = d + 2*(x-y) + 5
+        sec
+        lda gfx_x2lo
+        sbc gfx_y2
+        sta gfx_dxlo
+        lda #$00
+        sbc #$00
+        sta gfx_dxhi
+        asl gfx_dxlo
+        rol gfx_dxhi
+        clc
+        lda gfx_dxlo
+        adc #$05
+        sta gfx_dxlo
+        lda gfx_dxhi
+        adc #$00
+        sta gfx_dxhi
+        clc
+        lda gfx_errlo
+        adc gfx_dxlo
+        sta gfx_errlo
+        lda gfx_errhi
+        adc gfx_dxhi
+        sta gfx_errhi
+        dec gfx_y2
+        bra @inc_x
+
+@d_neg:
+        ; d = d + 2*x + 3
+        lda gfx_x2lo
+        asl
+        sta gfx_dxlo
+        stz gfx_dxhi
+        clc
+        lda gfx_dxlo
+        adc #$03
+        sta gfx_dxlo
+        lda gfx_dxhi
+        adc #$00
+        sta gfx_dxhi
+        clc
+        lda gfx_errlo
+        adc gfx_dxlo
+        sta gfx_errlo
+        lda gfx_errhi
+        adc gfx_dxhi
+        sta gfx_errhi
+
+@inc_x:
+        inc gfx_x2lo
+        bra @loop
 
 GFX_BAD:
         ldx #ERR_ILLQTY
