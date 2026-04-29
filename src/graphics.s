@@ -11,6 +11,8 @@ GFX_CANVAS_320X180 := 2
 GFX_MODE_BITMAP    := 3
 GFX_CFG_ADDR       := $FF00
 GFX_FB_ADDR        := $0000
+GFX_TEXT7_BEGIN    := 184
+GFX_TEXT7_END      := 240
 
 ; ----------------------------------------------------------
 ; gfx_xreg_canvas -- xreg(1,0,0,canvas)
@@ -135,6 +137,99 @@ gfx_xreg_console_overlay:
         rts
 
 ; ----------------------------------------------------------
+; gfx_xreg_mode3_180t -- mode3 on top 180 scanlines only
+; Uses canvas 320x240 with 8bpp bitmap in scanlines [0,180).
+; ----------------------------------------------------------
+gfx_xreg_mode3_180t:
+        lda #RIA_OP_ZXSTACK
+        sta RIA_OP
+
+        lda #$01
+        sta RIA_XSTACK            ; device 1 (VGA)
+        stz RIA_XSTACK            ; channel 0
+        lda #$01
+        sta RIA_XSTACK            ; address 1 (MODE)
+
+        stz RIA_XSTACK            ; MODE high
+        lda #GFX_MODE_BITMAP
+        sta RIA_XSTACK            ; MODE low
+
+        stz RIA_XSTACK            ; OPTIONS high
+        lda #$03
+        sta RIA_XSTACK            ; OPTIONS low (8bpp)
+
+        lda #>GFX_CFG_ADDR
+        sta RIA_XSTACK            ; CONFIG high
+        lda #<GFX_CFG_ADDR
+        sta RIA_XSTACK            ; CONFIG low
+
+        stz RIA_XSTACK            ; PLANE high
+        lda gfx_bitmap_plane
+        sta RIA_XSTACK            ; PLANE low
+
+        stz RIA_XSTACK            ; BEGIN high
+        stz RIA_XSTACK            ; BEGIN low = 0
+
+        stz RIA_XSTACK            ; END high
+        lda #180
+        sta RIA_XSTACK            ; END low = 180
+
+        lda #RIA_OP_XREG
+        sta RIA_OP
+        jsr RIA_SPIN
+        cpx #$FF
+        bne @ok
+        cmp #$FF
+        bne @ok
+        sec
+        rts
+@ok:
+        clc
+        rts
+
+; ----------------------------------------------------------
+; gfx_xreg_console_overlay_180t -- mode0 console on bottom 7 rows
+; Uses scanlines [184,240) for 7 text lines at 8px each.
+; ----------------------------------------------------------
+gfx_xreg_console_overlay_180t:
+        lda #RIA_OP_ZXSTACK
+        sta RIA_OP
+
+        lda #$01
+        sta RIA_XSTACK            ; device 1 (VGA)
+        stz RIA_XSTACK            ; channel 0
+        lda #$01
+        sta RIA_XSTACK            ; address 1 (MODE)
+
+        stz RIA_XSTACK            ; MODE high
+        stz RIA_XSTACK            ; MODE low = 0 (console)
+
+        stz RIA_XSTACK            ; PLANE high
+        lda gfx_console_plane
+        sta RIA_XSTACK            ; PLANE low
+
+        stz RIA_XSTACK            ; BEGIN high
+        lda #GFX_TEXT7_BEGIN
+        sta RIA_XSTACK            ; BEGIN low = 184
+
+        stz RIA_XSTACK            ; END high
+        lda #GFX_TEXT7_END
+        sta RIA_XSTACK            ; END low = 240
+
+        lda #RIA_OP_XREG
+        sta RIA_OP
+        jsr RIA_SPIN
+        cpx #$FF
+        bne @ok
+        cmp #$FF
+        bne @ok
+        sec
+        rts
+@ok:
+        clc
+        rts
+
+; ----------------------------------------------------------
 ; gfx_apply_mode_current
 ; Reprogram current graphics canvas and layers from state.
 ; gfx_mode: 1=180/8bpp, 2=240/4bpp
@@ -145,6 +240,8 @@ gfx_apply_mode_current:
         beq @m180
         cmp #$02
         beq @m240
+        cmp #$03
+        beq @m180t
         sec
         rts
 
@@ -177,6 +274,21 @@ gfx_apply_mode_current:
         lda gfx_console_enable
         beq @ok
         jsr gfx_xreg_console_overlay
+        bcs @bad
+        clc
+        rts
+
+@m180t:
+        lda #180
+        jsr gfx_write_mode3_config
+        lda #GFX_CANVAS_320X240
+        jsr gfx_xreg_canvas
+        bcs @bad
+        jsr gfx_xreg_mode3_180t
+        bcs @bad
+        lda gfx_console_enable
+        beq @ok
+        jsr gfx_xreg_console_overlay_180t
         bcs @bad
         clc
         rts
@@ -249,6 +361,8 @@ MODE:
 
         jsr CHRGOT
         beq @mode_value_ready
+        cmp #'T'
+        beq @mode_t_suffix
         cmp #','
         bne @bad
         jsr CHRGET
@@ -274,6 +388,18 @@ MODE:
 
 @overlay_off:
         stz gfx_console_enable
+
+@mode_t_suffix:
+        lda gfx_tmp
+        cmp #180
+        bne @bad
+        jsr CHRGET
+        bne @bad
+        lda #$03
+        sta gfx_mode
+        jsr gfx_apply_mode_current
+        bcs @bad
+        rts
 
 @mode_value_ready:
         lda gfx_tmp
@@ -326,10 +452,10 @@ CLS:
         lda #>GFX_FB_ADDR
         sta RIA_ADDR0+1
 
-        ldx #225                  ; 320*180 bytes
+        ldx #225                  ; 320*180 bytes (8bpp modes)
         lda gfx_mode
-        cmp #$01
-        beq @have_pages
+        cmp #$02
+        bne @have_pages
         ldx #150                  ; 320*240/2 bytes
 @have_pages:
         lda #$00
@@ -409,8 +535,8 @@ gfx_validate_x_current:
 ; ----------------------------------------------------------
 gfx_validate_y_current:
         lda gfx_mode
-        cmp #$01
-        bne @chk240
+        cmp #$02
+        beq @chk240
         lda gfx_y
         cmp #180
         bcc @ok
@@ -461,8 +587,8 @@ gfx_plot_current:
         sta gfx_offhi
 
         lda gfx_mode
-        cmp #$01
-        bne :+
+        cmp #$02
+        beq :+
         jmp @plot8
 : 
 
@@ -1136,6 +1262,8 @@ GFX_STATUS:
         beq @mode0
         cmp #$01
         beq @mode180
+        cmp #$03
+        beq @mode180t
         ldx #$F0                 ; 240
         lda #$00
         bra @mode_print
@@ -1148,10 +1276,20 @@ GFX_STATUS:
 @mode180:
         ldx #$B4                 ; 180
         lda #$00
+        bra @mode_print
+
+@mode180t:
+        lda #<gfx_status_mode180t
+        ldy #>gfx_status_mode180t
+        jsr STROUT
+        jsr CRDO
+        bra @mode_after
 
 @mode_print:
         jsr rp6502_linprt
         jsr CRDO
+
+@mode_after:
 
         lda #<gfx_status_bitmap
         ldy #>gfx_status_bitmap
@@ -2221,3 +2359,6 @@ gfx_status_overlay:
 
 gfx_status_off:
         .byte "OFF",0
+
+gfx_status_mode180t:
+        .byte "180T",0

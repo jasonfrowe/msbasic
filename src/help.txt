@@ -22,6 +22,7 @@ Graphics commands (early preview):
   Canonical style uses full words (MODE, CLEAR, PSET, etc.).
   GFX MODE,0             Return to console canvas
   GFX MODE,180           320x180 bitmap mode (8-bit color index)
+  GFX MODE,180T          320x180 bitmap + 7 console text rows at bottom
   GFX MODE,240           320x240 bitmap mode (4-bit color index)
   GFX MODE,m,bp,cp       Mode with bitmap plane bp and console plane cp
   GFX PSET,X,Y,C         Plot pixel at X,Y with color C
