@@ -152,11 +152,17 @@ sfx_play:
         lda aud_arg1
         and #$7F
         sta aud_arg1
+        lda #$06                  ; one-shot default length
+        sta aud_arg2
         jsr audio_pitch_to_freq
         jsr audio_load_default_vel
         jsr audio_psg_note_voice
         lda #$01
         sta aud_enable
+        jsr audio_wait_ticks
+        ldx aud_arg0
+        jsr audio_psg_gate_off_voice
+        stz aud_enable
         rts
 @qty:
         ldx #ERR_ILLQTY
@@ -250,6 +256,10 @@ sfx_note:
         jsr audio_psg_note_voice
         lda #$01
         sta aud_enable
+        jsr audio_wait_ticks
+        ldx aud_arg0
+        jsr audio_psg_gate_off_voice
+        stz aud_enable
         rts
 @qty:
         ldx #ERR_ILLQTY
@@ -551,6 +561,47 @@ audio_psg_note_voice:
         lda #$01
         sta RIA_RW0               ; pan center + gate on
         stz RIA_RW0               ; unused
+        rts
+
+; ----------------------------------------------------------------------------
+; audio_wait_ticks -- blocking note/one-shot duration wait.
+; Uses aud_arg2 as duration and aud_tempo as a coarse inverse-time scale.
+; This is intentionally simple for Phase 4; non-blocking scheduling can replace
+; it later.
+; ----------------------------------------------------------------------------
+audio_wait_ticks:
+        ldy aud_arg2
+        beq @done
+
+        lda aud_tempo_hi
+        beq @tempo8
+        lda #$1E                  ; clamp fast tempos >255 BPM
+        bra @scale_ready
+@tempo8:
+        lda #$2C                  ; 300
+        sec
+        sbc aud_tempo_lo
+        bcs :+
+        lda #$01
+:
+        clc
+        adc #$1E                  ; keep minimum wait at high BPM
+@scale_ready:
+        sta aud_tmp               ; inner scale 30..330-ish
+
+@outer:
+        ldx aud_tmp
+@mid:
+        lda #$FF
+@inner:
+        sec
+        sbc #$01
+        bne @inner
+        dex
+        bne @mid
+        dey
+        bne @outer
+@done:
         rts
 
 ; ----------------------------------------------------------------------------

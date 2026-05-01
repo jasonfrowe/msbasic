@@ -44,7 +44,8 @@ Graphics commands (early preview):
 
 Audio commands (early preview):
   Temporary syntax uses @SFX with a subcommand.
-  In this early build, NOTE and one-shot playback sustain until @SFX STOP.
+  NOTE and one-shot playback now auto-release after a coarse duration wait.
+  @SFX STOP is still available as an immediate panic stop.
   @SFX n              Play one-shot effect n (auto-voice)
   @SFX n,v            Play one-shot effect n on voice v (0..2)
   @SFX STOP           Silence all voices immediately
