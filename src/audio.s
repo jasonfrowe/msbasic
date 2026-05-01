@@ -21,11 +21,14 @@
 
 .segment "CODE"
 
+AUDIO_PSG_ADDR := $FD00
+
 ; ----------------------------------------------------------------------------
 ; audio_init -- Initialize all audio state to safe defaults.
 ; Called from COLD_START (init.s). Preserves no registers.
 ; ----------------------------------------------------------------------------
 audio_init:
+        jsr audio_psg_enable
         stz aud_enable
         lda #120              ; default TEMPO = 120 BPM
         sta aud_tempo_lo
@@ -48,8 +51,15 @@ audio_init:
 ; Phase 4: add PSG register writes for voices 0..2.
 ; ----------------------------------------------------------------------------
 audio_allstop:
+        phx
+        ldx #$00
+@loop:
+        jsr audio_psg_gate_off_voice
+        inx
+        cpx #$03
+        bcc @loop
         stz aud_enable        ; mark all voices idle
-        ; TODO Phase 4: write silence to PSG channel registers for voices 0..2
+        plx
         rts
 
 ; ============================================================================
@@ -127,17 +137,30 @@ SFX_CMD:
 ; ============================================================================
 sfx_play:
         jsr GETBYT                ; X = effect id 0..255
+        stx aud_arg1
+        ldx #$00                  ; default auto voice for now
+        stx aud_arg0
         jsr CHRGOT
-        beq @done
+        beq @emit
         cmp #','
-        bne @done
+        bne @emit
         jsr COMBYTE               ; X = voice 0..2
         cpx #$03
-        bcc @done
+        bcs @qty
+        stx aud_arg0
+@emit:
+        lda aud_arg1
+        and #$7F
+        sta aud_arg1
+        jsr audio_pitch_to_freq
+        jsr audio_load_default_vel
+        jsr audio_psg_note_voice
+        lda #$01
+        sta aud_enable
+        rts
+@qty:
         ldx #ERR_ILLQTY
         jmp ERROR
-@done:
-        rts                       ; Phase 3: no PSG output yet
 
 ; ============================================================================
 ; sfx_tempo -- SFX TEMPO,bpm   (bpm: 30..300)
@@ -203,19 +226,30 @@ sfx_note:
         jsr COMBYTE               ; X = voice 0..2
         cpx #$03
         bcs @qty
+        stx aud_arg0
         jsr COMBYTE               ; X = pitch 0..127
         cpx #$80
         bcs @qty
+        stx aud_arg1
         jsr COMBYTE               ; X = duration 1..255
         beq @qty                  ; dur=0 illegal
+        stx aud_arg2
         jsr CHRGOT
-        beq @done
+        beq @emit_default
         cmp #','
-        bne @done
+        bne @emit_default
         jsr COMBYTE               ; X = velocity 0..15
         cpx #$10
         bcs @qty
-@done:
+        stx aud_tmp
+        bra @emit
+@emit_default:
+        jsr audio_load_default_vel
+@emit:
+        jsr audio_pitch_to_freq
+        jsr audio_psg_note_voice
+        lda #$01
+        sta aud_enable
         rts
 @qty:
         ldx #ERR_ILLQTY
@@ -339,6 +373,185 @@ sfx_status:
 @syn:
         ldx #ERR_SYNTAX
         jmp ERROR
+
+; ----------------------------------------------------------------------------
+; audio_psg_enable -- map RIA PSG config block to XRAM AUDIO_PSG_ADDR.
+; xreg(0,1,0,AUDIO_PSG_ADDR)
+; ----------------------------------------------------------------------------
+audio_psg_enable:
+        lda #RIA_OP_ZXSTACK
+        sta RIA_OP
+        stz RIA_XSTACK            ; device 0 (RIA)
+        lda #$01
+        sta RIA_XSTACK            ; channel 1 (audio)
+        stz RIA_XSTACK            ; address 0x00 (PSG config base)
+        lda #>AUDIO_PSG_ADDR
+        sta RIA_XSTACK            ; value high
+        lda #<AUDIO_PSG_ADDR
+        sta RIA_XSTACK            ; value low
+        lda #RIA_OP_XREG
+        sta RIA_OP
+        jsr RIA_SPIN
+        rts
+
+; ----------------------------------------------------------------------------
+; audio_psg_addr_voice -- point RW0 stream at oscillator X (0..2 currently).
+; ----------------------------------------------------------------------------
+audio_psg_addr_voice:
+        txa
+        asl a
+        asl a
+        asl a
+        clc
+        adc #<AUDIO_PSG_ADDR
+        sta RIA_ADDR0
+        lda #>AUDIO_PSG_ADDR
+        adc #$00
+        sta RIA_ADDR0+1
+        lda #$01
+        sta RIA_STEP0
+        rts
+
+; ----------------------------------------------------------------------------
+; audio_psg_gate_off_voice -- release/quiet one oscillator (X=voice).
+; ----------------------------------------------------------------------------
+audio_psg_gate_off_voice:
+        jsr audio_psg_addr_voice
+        stz RIA_RW0               ; freq lo
+        stz RIA_RW0               ; freq hi
+        lda #$80
+        sta RIA_RW0               ; duty = 50%
+        lda #$F2
+        sta RIA_RW0               ; attack: silent attenuation, quick rate
+        lda #$F6
+        sta RIA_RW0               ; decay: silent attenuation
+        lda #$06
+        sta RIA_RW0               ; sine + medium release
+        stz RIA_RW0               ; pan center + gate off
+        stz RIA_RW0               ; unused
+        rts
+
+; ----------------------------------------------------------------------------
+; audio_load_default_vel -- aud_tmp = default velocity for aud_arg0 voice.
+; ----------------------------------------------------------------------------
+audio_load_default_vel:
+        ldx aud_arg0
+        cpx #$01
+        beq @v1
+        cpx #$02
+        beq @v2
+        lda aud_v0_vel
+        sta aud_tmp
+        rts
+@v1:
+        lda aud_v1_vel
+        sta aud_tmp
+        rts
+@v2:
+        lda aud_v2_vel
+        sta aud_tmp
+        rts
+
+; ----------------------------------------------------------------------------
+; audio_pitch_to_freq -- aud_arg1 (0..127) -> aud_freq_{lo,hi}.
+; Coarse Phase 4 mapping: freq3 = pitch * 12 + 60.
+; ----------------------------------------------------------------------------
+audio_pitch_to_freq:
+        lda aud_arg1
+        sta aud_freq_lo
+        stz aud_freq_hi
+        asl aud_freq_lo           ; *2
+        rol aud_freq_hi
+        asl aud_freq_lo           ; *4
+        rol aud_freq_hi
+        lda aud_freq_lo
+        sta LINNUM                ; save *4
+        lda aud_freq_hi
+        sta LINNUM+1
+        asl aud_freq_lo           ; *8
+        rol aud_freq_hi
+        clc
+        lda aud_freq_lo
+        adc LINNUM                ; *12
+        sta aud_freq_lo
+        lda aud_freq_hi
+        adc LINNUM+1
+        sta aud_freq_hi
+        clc
+        lda aud_freq_lo
+        adc #60                   ; keep very low pitches audible
+        sta aud_freq_lo
+        lda aud_freq_hi
+        adc #$00
+        sta aud_freq_hi
+        rts
+
+; ----------------------------------------------------------------------------
+; audio_psg_note_voice -- gate on voice aud_arg0 using aud_freq and aud_tmp vel.
+; ----------------------------------------------------------------------------
+audio_psg_note_voice:
+        ldx aud_arg0
+        jsr audio_psg_addr_voice
+
+        lda aud_freq_lo
+        sta RIA_RW0               ; freq lo
+        lda aud_freq_hi
+        sta RIA_RW0               ; freq hi
+        lda #$80
+        sta RIA_RW0               ; duty = 50%
+
+        lda #$0F
+        sec
+        sbc aud_tmp               ; attenuation = 15 - velocity
+        asl a
+        asl a
+        asl a
+        asl a
+        ora #$02                  ; quick attack
+        sta RIA_RW0               ; vol_attack
+
+        lda #$0F
+        sec
+        sbc aud_tmp
+        asl a
+        asl a
+        asl a
+        asl a
+        ora #$06                  ; medium decay
+        sta RIA_RW0               ; vol_decay
+
+        ldx aud_arg0
+        cpx #$01
+        beq @inst1
+        cpx #$02
+        beq @inst2
+        lda aud_v0_inst
+        bra @inst_mod
+@inst1:
+        lda aud_v1_inst
+        bra @inst_mod
+@inst2:
+        lda aud_v2_inst
+@inst_mod:
+        cmp #$05
+        bcc @inst_ok
+@inst_loop:
+        sec
+        sbc #$05
+        cmp #$05
+        bcs @inst_loop
+@inst_ok:
+        asl a
+        asl a
+        asl a
+        asl a
+        ora #$06                  ; medium release
+        sta RIA_RW0               ; wave_release
+
+        lda #$01
+        sta RIA_RW0               ; pan center + gate on
+        stz RIA_RW0               ; unused
+        rts
 
 ; ----------------------------------------------------------------------------
 ; String constants for SFX STATUS output.

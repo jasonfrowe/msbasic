@@ -132,6 +132,11 @@ aud_v2_inst:   .res 1   ; voice 2 instrument id
 aud_v0_vel:    .res 1   ; voice 0 default velocity (0..15)
 aud_v1_vel:    .res 1   ; voice 1 default velocity
 aud_v2_vel:    .res 1   ; voice 2 default velocity
+aud_arg0:      .res 1   ; parsed voice / temp arg0
+aud_arg1:      .res 1   ; parsed pitch/effect id
+aud_arg2:      .res 1   ; parsed duration / temp arg2
+aud_freq_lo:   .res 1   ; computed PSG freq low byte
+aud_freq_hi:   .res 1   ; computed PSG freq high byte
 aud_tmp:       .res 1   ; audio parser scratch byte
 gfx_rad:       .res 1
 
