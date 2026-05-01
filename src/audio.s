@@ -60,7 +60,45 @@ audio_allstop:
 SFX_CMD:
         cmp #TOKEN_STOP           ; SFX STOP (STOP is tokenised)
         bne :+
+        ; Move past the STOP token so TXTPTR lands on ':' or end-of-line
+        ; before returning to the outer statement loop.
+        jsr CHRGET
         jmp audio_allstop
+:
+        cmp #'S'
+        bne :+
+        ; @SFX path can present raw text (S/T/O/P). Distinguish STOP from
+        ; STATUS by peeking ahead from TXTPTR, which points at this 'S'.
+        ldy #$01
+        lda (TXTPTR),y
+        cmp #'T'
+        bne @s_status
+        iny
+        lda (TXTPTR),y
+        cmp #'O'
+        bne @s_status
+        iny
+        lda (TXTPTR),y
+        cmp #'P'
+        bne @s_status
+        ; Ensure STOP ends as a word, not STOP... prefix.
+        iny
+        lda (TXTPTR),y
+        beq @s_stop
+        cmp #':'
+        beq @s_stop
+        cmp #' '
+        bne @s_status
+@s_stop:
+        ; Consume T/O/P and then advance once more so TXTPTR lands on the
+        ; statement terminator (':' or 0), matching normal handler contract.
+        jsr CHRGET
+        jsr CHRGET
+        jsr CHRGET
+        jsr CHRGET
+        jmp audio_allstop
+@s_status:
+        jmp sfx_status
 :
         cmp #'T'
         bne :+
@@ -274,6 +312,8 @@ sfx_status:
         jsr CHRGET
         cmp #'S'
         bne @syn
+        ; Move past STATUS so caller sees ':' or end-of-line at TXTPTR.
+        jsr CHRGET
         lda #<aud_str_bank
         ldy #>aud_str_bank
         jsr STROUT

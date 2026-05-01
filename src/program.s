@@ -254,6 +254,13 @@ L246C:
         sta     ENDCHR
         cmp     #$22
         beq     L24D0
+        cmp     #'@'
+        bne     :+
+        lda     #':'
+        sta     ENDCHR
+        lda     #'@'
+        bne     L24D0
+:
         bit     DATAFLG
         bvs     L24AC
         cmp     #$3F

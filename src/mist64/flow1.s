@@ -217,31 +217,6 @@ EXECUTE_AT_STATEMENT:
         cmp     #'X'
         bne     AT_SYNERR
         jsr     CHRGET               ; first char after @SFX
-        cmp     #'S'
-        bne     :+
-        ; @SFX STOP is plain text here (not tokenised). Handle it early so
-        ; it doesn't collide with STATUS (both start with 'S').
-        ldy     #$01
-        lda     (TXTPTR),y
-        cmp     #'T'
-        bne     :+
-        iny
-        lda     (TXTPTR),y
-        cmp     #'O'
-        bne     :+
-        iny
-        lda     (TXTPTR),y
-        cmp     #'P'
-        bne     :+
-        ; Consume STOP text (S,T,O,P). TXTPTR currently points at 'S'.
-        ; Advancing three chars leaves TXTPTR on 'P', so NEWSTT's next
-        ; CHRGET steps to the following separator/EOL.
-        jsr     CHRGET
-        jsr     CHRGET
-        jsr     CHRGET
-        jsr     audio_allstop
-        rts
-:
         jsr     SFX_CMD
         rts
 AT_SYNERR:
