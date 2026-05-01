@@ -41,3 +41,4 @@
 .include "extra.s"
 .include "caps.s"
 .include "graphics.s"
+.include "audio.s"

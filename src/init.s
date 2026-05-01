@@ -58,6 +58,7 @@ COLD_START:
         sta gfx_console_plane ; default console overlay on plane 2
         lda #$01
         sta gfx_console_enable ; overlay enabled by default
+        jsr audio_init        ; initialize audio state to safe defaults
         ldx #TEMPST
         stx TEMPPT
 

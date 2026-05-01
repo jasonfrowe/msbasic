@@ -130,6 +130,11 @@ LA5DC:
         inc     TXTPTR+1
 NEWSTT2:
         jsr     CHRGET
+        cmp     #'@'
+        bne     :+
+        jsr     EXECUTE_AT_STATEMENT
+        jmp     NEWSTT
+:
         jsr     EXECUTE_STATEMENT
         jmp     NEWSTT
 
@@ -143,7 +148,7 @@ EXECUTE_STATEMENT:
 .ifndef CONFIG_11A
         beq     RET1
 .else
-        beq     RET2
+        beq     EXEC_RET2
 .endif
 .ifndef CONFIG_11
         sec
@@ -169,6 +174,9 @@ EXECUTE_STATEMENT1:
         pha
         jmp     CHRGET
 
+EXEC_RET2:
+        jmp     RET2
+
 .ifdef CONFIG_11
 LET1:
         jmp     LET
@@ -189,6 +197,55 @@ LC721:
         jsr     SYNCHR
         jmp     GOTO
 .endif
+
+; ----------------------------------------------------------------------------
+; EXECUTE AN @-PREFIX EXTENSION STATEMENT
+;
+; Current temporary extension syntax:
+;   @SFX <subcommand>
+;
+; This bypasses tokenization pressure (no new TOKEN_NAME_TABLE bytes).
+; ----------------------------------------------------------------------------
+EXECUTE_AT_STATEMENT:
+        jsr     CHRGET               ; first char after '@'
+        cmp     #'S'
+        bne     AT_SYNERR
+        jsr     CHRGET
+        cmp     #'F'
+        bne     AT_SYNERR
+        jsr     CHRGET
+        cmp     #'X'
+        bne     AT_SYNERR
+        jsr     CHRGET               ; first char after @SFX
+        cmp     #'S'
+        bne     :+
+        ; @SFX STOP is plain text here (not tokenised). Handle it early so
+        ; it doesn't collide with STATUS (both start with 'S').
+        ldy     #$01
+        lda     (TXTPTR),y
+        cmp     #'T'
+        bne     :+
+        iny
+        lda     (TXTPTR),y
+        cmp     #'O'
+        bne     :+
+        iny
+        lda     (TXTPTR),y
+        cmp     #'P'
+        bne     :+
+        ; Consume STOP text (S,T,O,P). TXTPTR currently points at 'S'.
+        ; Advancing three chars leaves TXTPTR on 'P', so NEWSTT's next
+        ; CHRGET steps to the following separator/EOL.
+        jsr     CHRGET
+        jsr     CHRGET
+        jsr     CHRGET
+        jsr     audio_allstop
+        rts
+:
+        jsr     SFX_CMD
+        rts
+AT_SYNERR:
+        jmp     SYNERR1
 
 ; ----------------------------------------------------------------------------
 ; "RESTORE" STATEMENT

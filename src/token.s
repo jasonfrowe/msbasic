@@ -55,6 +55,13 @@
         keyword_rts "CAPS", CAPS
         keyword_rts "GFX", GFX
 
+        ; Token ids are one byte and start at $80 (see define_token macro),
+        ; so the entire language has 128 unique token slots total ($80..$FF)
+        ; across statements, operators, and functions.
+        ;
+        ; NUM_TOKENS freezes only the statement-dispatch table size; entries
+        ; added after count_tokens still consume ids from the same global pool.
+        ; Keep statement-growth budgeted against total token usage.
         count_tokens
 
         keyword "TAB(", TOKEN_TAB
@@ -105,6 +112,11 @@ UNFNC:
 
         .segment "KEYWORDS"
         .byte 0
+
+        ; program.s tokenizer walks TOKEN_NAME_TABLE with 8-bit Y only,
+        ; so the keyword-name table (including this trailing 0) must fit
+        ; in 256 bytes total. Exceeding this wraps Y and can hang parse.
+        .assert (*-TOKEN_NAME_TABLE) <= $100, error, "TOKEN_NAME_TABLE exceeds 256-byte parser limit"
 
 ; ============================================================
 ; Math operator dispatch table (used by FRMEVL).
