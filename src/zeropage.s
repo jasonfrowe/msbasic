@@ -118,6 +118,21 @@ gfx_ctrlo:     .res 1
 gfx_ctrhi:     .res 1
 gfx_sx:        .res 1
 gfx_sy:        .res 1
+
+; Audio engine state (Phase 1 skeleton)
+aud_enable:    .res 1   ; 0=no voices active, 1=voices active
+aud_tempo_lo:  .res 1   ; TEMPO bpm low byte  (30..300)
+aud_tempo_hi:  .res 1   ; TEMPO bpm high byte
+aud_sfx_bank:  .res 1   ; active SFX bank  (SFXBANK)
+aud_sfx_vol:   .res 1   ; master SFX volume (SFXVOL, 0..255)
+; per-voice state (voices 0..2)
+aud_v0_inst:   .res 1   ; voice 0 instrument id
+aud_v1_inst:   .res 1   ; voice 1 instrument id
+aud_v2_inst:   .res 1   ; voice 2 instrument id
+aud_v0_vel:    .res 1   ; voice 0 default velocity (0..15)
+aud_v1_vel:    .res 1   ; voice 1 default velocity
+aud_v2_vel:    .res 1   ; voice 2 default velocity
+aud_tmp:       .res 1   ; audio parser scratch byte
 gfx_rad:       .res 1
 
 CHRGET:

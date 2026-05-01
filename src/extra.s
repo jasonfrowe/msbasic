@@ -417,28 +417,9 @@ rp6502_inlin:
 ;   chrout still routed to the buffer.
 ; ------------------------------------------------------------
 rp6502_iscntc:
-        lda chrout_ptr+1          ; tab completion in progress: skip
-        bne @done                 ; (see header comment)
-        lda #RIA_ATTR_SIGINT
-        sta RIA_A
-        lda #RIA_OP_ATTR_GET
-        sta RIA_OP
-        jsr RIA_SPIN
-        cmp #$01
-        bne @done
-        lda #$FF                  ; drain tty: of the user's Ctrl-C
-        sta RIA_XSTACK            ; count lo = 255; hi short-stacks
-        lda tty_fd
-        sta RIA_A
-        lda #RIA_OP_READ_XSTACK
-        sta RIA_OP
-        jsr RIA_SPIN
-        lda #RIA_OP_ZXSTACK       ; sets A=0, Z=1 for STOP entry
-        sta RIA_OP
-        jsr lsav_abort            ; restore I/O if SAVE was mid-LIST
-        sec                       ; C=1 for STOP entry
-        jmp STOP
-@done:
+        ; Temporary safety fallback: disable asynchronous break polling.
+        ; This prevents statement-loop hangs while the sidechannel path is
+        ; being debugged. Ctrl-C handling can be restored once verified.
         rts
 
 ; ------------------------------------------------------------

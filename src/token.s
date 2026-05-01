@@ -34,7 +34,7 @@
         keyword_rts "GOSUB", GOSUB, TOKEN_GOSUB
         keyword_rts "RETURN", POP
         keyword_rts "REM", REM, TOKEN_REM
-        keyword_rts "STOP", STOP
+        keyword_rts "STOP", STOP, TOKEN_STOP
         keyword_rts "ON", ON
         keyword_rts "WAIT", WAIT
         keyword_rts "LOAD", LOAD
